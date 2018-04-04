@@ -6,6 +6,7 @@ int main(int argc, char* argv[]){
     if(argc!=3){
         printf("Deux paramètres nécessaires\n");
         exit(0);
+        printf("angelep35");
     }
     char* ip_serv=argv[1];
     char* port=argv[2];
