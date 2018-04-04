@@ -45,7 +45,7 @@ int main(int argc, char* argv[]){
             printf("%s\n",buffer);
             if(strcmp(buffer,"SYN") == 0){
                 printf("Envoie du synack\n");
-                char syn_ack[8] = "SYN-ACK";
+                char syn_ack[12] = "SYN-ACK5009";
                 ssize_t sendsyn = sendto(desc,syn_ack,strlen(syn_ack),0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
                 int rcv_ack = recvfrom( desc, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
                 if( rcv_ack <= 0 ) {
@@ -63,29 +63,24 @@ int main(int argc, char* argv[]){
                             struct sockaddr_in my_addr2;
                             memset((char*)&my_addr2,0,sizeof(my_addr2));
                             my_addr2.sin_family = AF_INET;
-                            my_addr2.sin_port = htons(4009);
+                            my_addr2.sin_port = htons(5009);
                             my_addr2.sin_addr.s_addr = htonl(INADDR_ANY);
 
                             //Bind socket2
                             bind(desc2,(struct sockaddr*)&my_addr2,sizeof(my_addr2));
 
-
-                            char new_port[5] = "4009";
-                            ssize_t sendsyn=sendto(desc,new_port,strlen(new_port),0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
-
-
+                            printf("Bind2\n");
                             int rcv_mess = recvfrom(desc2, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr2.sin_addr, (unsigned*)&cli_len);
                             if( rcv_mess <= 0 ) {
                                 printf( "recvfrom() error \n" );
                                 return -1;
                             }
-                            printf("reçu socket 2 %s\n",buffer);
+                            printf("reçu nom fichier : %s\n",buffer);
 
 
 //CONNEXION GO !!!!!
 
-
-                            envoiImage("imgtest.png", desc2,my_addr2,cli_len);
+                            envoiImage(buffer,desc2,my_addr2,cli_len);
                             
 
 
@@ -147,24 +142,36 @@ int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
     FILE *f = fopen(file,"rb");
     char * ptableau;
     int nombreElements = 15;
-    ptableau = malloc((nombreElements+1) * sizeof(char));
+    ptableau = malloc((nombreElements+6) * sizeof(char));
     //Ne pas oublier de tester le retour de malloc
     int nbelemrecu=nombreElements;
     int val = 0;
-    char ACK[5];
+    char str[5];
+    char ACK[9];
     while(nbelemrecu==nombreElements){
         val++;
+        for(int i=0;i<5;i++){ str[i]='0'; }
+        sprintf(str, "%d", val);
+        int compteur=-1;
+        for(int i=0;i<5;i++){ if(str[i]>=49 && str[i]<=57) compteur++; }
+        printf("str=%s\n",str);
+        printf("val=%d\n compteur =%d \n",val,compteur);
         nbelemrecu = fread( ptableau , sizeof(char) , nombreElements , f);
-        ptableau[nbelemrecu]= val;
-        ssize_t sendLine=sendto(desc,ptableau,nbelemrecu+1,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
-        printf("renvoie du sendLine : %d\n", (int)sendLine);
-        for (int i=0;i<nbelemrecu+1;i++){  
-            printf("(%d)",ptableau[i]);
+        for(int i=0;i<5;i++){
+            if(compteur-i>=0){
+                ptableau[nbelemrecu+4-i]=str[compteur-i-1];
+            }else{
+                ptableau[nbelemrecu+4-i]='0';
+            }
         }
-        printf("\nnum seq %d\n",(int)ptableau[nbelemrecu]);
-        printf("val %d\n",val);
+        ptableau[nbelemrecu+5]= 'N';
+        ssize_t sendLine=sendto(desc,ptableau,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+        printf("renvoie du sendLine : %d\n", (int)sendLine);
+        for (int i=0;i<nbelemrecu+6;i++){  
+            printf("(%c)",ptableau[i]);
+        }
         int rcv_ack = recvfrom(desc, ACK, sizeof(ACK), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
-        printf("ack reçu n° %d\n",(int)ACK[3]);
+        printf("\nack reçu n° %s\n",ACK);
 
 
     }
