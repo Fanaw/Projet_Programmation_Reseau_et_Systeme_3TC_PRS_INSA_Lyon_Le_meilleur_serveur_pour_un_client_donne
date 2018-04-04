@@ -2,59 +2,76 @@
 
 
 int main(int argc, char* argv[]){
-    if(argc!=2){
+    if(argc != 2){
         printf("Un paramètre nécessaire\n");
         exit(0);
     }
-    char* port=argv[1];
-    int port_serv=atoi(port);
+
+    //port serveur et descripteur
+    char* port = argv[1];
+    int port_serv = atoi(port);
     int desc;
-    if( (desc = socket(PF_INET,SOCK_DGRAM,0)) >0){
-        printf("%d\n",desc);
+
+
+    //Socket
+    if( (desc = socket(PF_INET,SOCK_DGRAM,0)) > 0){
+        printf("descripteur : %d\n",desc);
 
         int reuse = 1;
         int reuseok;
         if( (reuseok = setsockopt(desc,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse))) >= 0){
+
+            //Struct sockaddr pour connexion
             struct sockaddr_in my_addr;
             memset((char*)&my_addr,0,sizeof(my_addr));
-            my_addr.sin_family=AF_INET;
-            my_addr.sin_port=htons(port_serv);
-            my_addr.sin_addr.s_addr=htonl(INADDR_ANY);
+            my_addr.sin_family = AF_INET;
+            my_addr.sin_port = htons(port_serv);
+            my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-            bind(desc,(struct sockaddr*)&my_addr,sizeof(my_addr));
+            //bind
+            printf("return bind : %d\n",bind(desc,(struct sockaddr*)&my_addr,sizeof(my_addr)));
+
+            //SYN client
             char buffer[50];
-            int cli_len=sizeof(my_addr.sin_addr);
+            int cli_len = sizeof(my_addr.sin_addr);
+            printf("En attente du SYN\n");
             int rcv_syn = recvfrom( desc, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
+            printf("SYN reçu\n");
             if( rcv_syn <= 0 ) {
+                //error SYN
                 printf( "recvfrom() error \n" );
                 return -1;
             }
             printf("%s\n",buffer);
-            if(strcmp(buffer,"SYN")==0){
+            if(strcmp(buffer,"SYN") == 0){
                 printf("Envoie du synack\n");
-                char syn_ack[8]="SYN-ACK";
-                ssize_t sendsyn=sendto(desc,syn_ack,strlen(syn_ack),0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+                char syn_ack[8] = "SYN-ACK";
+                ssize_t sendsyn = sendto(desc,syn_ack,strlen(syn_ack),0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
                 int rcv_ack = recvfrom( desc, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
                 if( rcv_ack <= 0 ) {
                     printf( "recvfrom() error \n" );
                     return -1;
                 }
                 printf("%s\n",buffer);
-                if(strcmp(buffer,"ACK")==0){
+                if(strcmp(buffer,"ACK") == 0){
                     int desc2;
-                    if( (desc2 = socket(PF_INET,SOCK_DGRAM,0)) >0){
+                    if( (desc2 = socket(PF_INET,SOCK_DGRAM,0)) > 0){
                         int reuseok2;
                         if( (reuseok2 = setsockopt(desc2,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse))) >= 0){
+
+                            //Struct sockaddr2 privé
                             struct sockaddr_in my_addr2;
                             memset((char*)&my_addr2,0,sizeof(my_addr2));
-                            my_addr2.sin_family=AF_INET;
-                            my_addr2.sin_port=htons(4009);
-                            my_addr2.sin_addr.s_addr=htonl(INADDR_ANY);
+                            my_addr2.sin_family = AF_INET;
+                            my_addr2.sin_port = htons(4009);
+                            my_addr2.sin_addr.s_addr = htonl(INADDR_ANY);
+
+                            //Bind socket2
                             bind(desc2,(struct sockaddr*)&my_addr2,sizeof(my_addr2));
-                            char new_port[5]="4009";
+
+
+                            char new_port[5] = "4009";
                             ssize_t sendsyn=sendto(desc,new_port,strlen(new_port),0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
-
-
 
 
                             int rcv_mess = recvfrom(desc2, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr2.sin_addr, (unsigned*)&cli_len);
