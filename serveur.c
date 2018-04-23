@@ -142,36 +142,33 @@ int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
     FILE *f = fopen(file,"rb");
     char * ptableau;
     int nombreElements = 15;
-    ptableau = malloc((nombreElements+6) * sizeof(char));
+    ptableau = malloc((nombreElements+1+6) * sizeof(char));
     //Ne pas oublier de tester le retour de malloc
     int nbelemrecu=nombreElements;
     int val = 0;
-    char str[5];
-    char ACK[9];
+    char ACK[10];
+    char SEQ[6];
     while(nbelemrecu==nombreElements){
         val++;
-        for(int i=0;i<5;i++){ str[i]='0'; }
-        sprintf(str, "%d", val);
-        int compteur=-1;
-        for(int i=0;i<5;i++){ if(str[i]>=49 && str[i]<=57) compteur++; }
-        printf("str=%s\n",str);
-        printf("val=%d\n compteur =%d \n",val,compteur);
+        if(val<10)  sprintf(SEQ, "0000%dN", val);
+        if(10<=val && val <100) sprintf(SEQ, "000%dN", val);
+        if(100<=val && val <1000) sprintf(SEQ, "00%dN", val);
+        if(1000<=val && val <10000) sprintf(SEQ, "0%dN", val);
+        if(10000<=val && val <100000) sprintf(SEQ, "%dN", val);
+        
         nbelemrecu = fread( ptableau , sizeof(char) , nombreElements , f);
-        for(int i=0;i<5;i++){
-            if(compteur-i>=0){
-                ptableau[nbelemrecu+4-i]=str[compteur-i-1];
-            }else{
-                ptableau[nbelemrecu+4-i]='0';
-            }
+        for(int i=0;i<6;i++){
+            ptableau[nbelemrecu+i]= SEQ[i];
         }
-        ptableau[nbelemrecu+5]= 'N';
-        ssize_t sendLine=sendto(desc,ptableau,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+        ssize_t sendLine=sendto(desc,ptableau,nbelemrecu+1+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
         printf("renvoie du sendLine : %d\n", (int)sendLine);
-        for (int i=0;i<nbelemrecu+6;i++){  
-            printf("(%c)",ptableau[i]);
+        for (int i=0;i<nbelemrecu+1+6;i++){  
+            printf("(%d)",ptableau[i]);
         }
+        //printf("\nnum seq %d\n",(int)ptableau[nbelemrecu]);
+        printf("\nval %d\nSEQ %s\n",val,SEQ);
         int rcv_ack = recvfrom(desc, ACK, sizeof(ACK), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
-        printf("\nack reçu n° %s\n",ACK);
+        printf("ack reçu n° %s\n",ACK);
 
 
     }
@@ -179,4 +176,3 @@ int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
     return nbelemrecu;
     
 }
-
