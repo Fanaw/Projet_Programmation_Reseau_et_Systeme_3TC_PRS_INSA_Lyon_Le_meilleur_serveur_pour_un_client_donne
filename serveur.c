@@ -3,7 +3,7 @@
 
 int main(int argc, char* argv[]){
     if(argc != 2){
-        printf("Un paramètre nécessaire\n");
+        printf("Numéro de port nécessaire !\n");
         exit(0);
     }
 
@@ -43,8 +43,8 @@ int main(int argc, char* argv[]){
                 return -1;
             }
             printf("%s\n",buffer);
-            if(strcmp(buffer,"SYN") == 0){
-                printf("Envoie du synack\n");
+            if(strcmp(buffer,"SYN") == 0){ //Si on a bien reçu SYN on continue 
+                printf("Envoie du synack avec nouveau port privé\n");
                 char syn_ack[12] = "SYN-ACK5009";
                 ssize_t sendsyn = sendto(desc,syn_ack,strlen(syn_ack),0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
                 int rcv_ack = recvfrom( desc, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
@@ -52,10 +52,10 @@ int main(int argc, char* argv[]){
                     printf( "recvfrom() error \n" );
                     return -1;
                 }
-                printf("%s\n",buffer);
+                printf("%s\n",buffer); //on reçoit l'acquittement que le nouveau port à bien été reçu
                 if(strcmp(buffer,"ACK") == 0){
                     int desc2;
-                    if( (desc2 = socket(PF_INET,SOCK_DGRAM,0)) > 0){
+                    if( (desc2 = socket(PF_INET,SOCK_DGRAM,0)) > 0){ //on ouvre une deuxième socket privée
                         int reuseok2;
                         if( (reuseok2 = setsockopt(desc2,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse))) >= 0){
 
@@ -70,15 +70,12 @@ int main(int argc, char* argv[]){
                             bind(desc2,(struct sockaddr*)&my_addr2,sizeof(my_addr2));
 
                             printf("Bind2\n");
-                            int rcv_mess = recvfrom(desc2, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr2.sin_addr, (unsigned*)&cli_len);
+                            int rcv_mess = recvfrom(desc2, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr2.sin_addr, (unsigned*)&cli_len); //on reçoit le nom de fichier à envoyer
                             if( rcv_mess <= 0 ) {
                                 printf( "recvfrom() error \n" );
                                 return -1;
                             }
                             printf("reçu nom fichier : %s\n",buffer);
-
-
-//CONNEXION GO !!!!!
 
                             envoiImage(buffer,desc2,my_addr2,cli_len);
                             
@@ -99,20 +96,20 @@ int main(int argc, char* argv[]){
     }else{printf("erreur création socket 1");return-1;}
 }
 
-int sendToI(int i, int desc,  struct sockaddr_in my_addr, int cli_len, FILE *f){
+/*"int sendToI(int i, int desc,  struct sockaddr_in my_addr, int cli_len, FILE *f){
     char * ptableau;
-    int nombreElements = 15;
-    ptableau = malloc((nombreElements+1) * sizeof(char));
+    int nbElements = 15;
+    ptableau = malloc((nbElements+1) * sizeof(char));
     for(int k=1;k<=i;k++){
-        int nbelemrecu = fread( ptableau , sizeof(char) , nombreElements , f);
+        int nbelemrecu = fread( ptableau , sizeof(char) , nbElements , f);
         ptableau[nbelemrecu]= k;
         ssize_t sendLine=sendto(desc , ptableau , nbelemrecu+1 ,0, (struct sockaddr*)&my_addr.sin_addr, cli_len);
         printf("renvoie du sendto n°%d: %d\n",k, (int)sendLine);
     }
     return 1;
-}
+}*/
 
-int recvFromI(int i,int desc,  struct sockaddr_in my_addr, int cli_len, FILE *f){
+/*int recvFromI(int i,int desc,  struct sockaddr_in my_addr, int cli_len, FILE *f){
     char ACK[5];
     struct timeval timeout;
     timeout.tv_sec=2;
@@ -123,8 +120,9 @@ int recvFromI(int i,int desc,  struct sockaddr_in my_addr, int cli_len, FILE *f)
     }
     return i;
     
-}
-int slowStart(int desc,  struct sockaddr_in my_addr, int cli_len,FILE *f){
+}*/
+
+/*int slowStart(int desc,  struct sockaddr_in my_addr, int cli_len,FILE *f){
     int mss=0;
     clock_t start_t,end_t,total_t;
     while(1){
@@ -136,43 +134,58 @@ int slowStart(int desc,  struct sockaddr_in my_addr, int cli_len,FILE *f){
         int rtt = rtt+a*(double)total_t;
     }
     return mss;
+}*/
+void ajoutSeq (int compt, char* messEnvoye){
+        if(compt<10)  sprintf(messEnvoye, "00000%d", compt);
+        if(10<=compt && compt <100) sprintf(messEnvoye, "0000%d", compt);
+        if(100<=compt && compt <1000) sprintf(messEnvoye, "000%d", compt);
+        if(1000<=compt && compt <10000) sprintf(messEnvoye, "00%d", compt);
+        if(10000<=compt && compt <100000) sprintf(messEnvoye, "0%d", compt);
+        if(100000<=compt && compt <1000000) sprintf(messEnvoye, "%d", compt);
 }
+
 int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
-
     FILE *f = fopen(file,"rb");
-    char * ptableau;
-    int nombreElements = 15;
-    ptableau = malloc((nombreElements+1+6) * sizeof(char));
-    //Ne pas oublier de tester le retour de malloc
-    int nbelemrecu=nombreElements;
-    int val = 0;
-    char ACK[10];
-    char SEQ[6];
-    while(nbelemrecu==nombreElements){
-        val++;
-        if(val<10)  sprintf(SEQ, "0000%dN", val);
-        if(10<=val && val <100) sprintf(SEQ, "000%dN", val);
-        if(100<=val && val <1000) sprintf(SEQ, "00%dN", val);
-        if(1000<=val && val <10000) sprintf(SEQ, "0%dN", val);
-        if(10000<=val && val <100000) sprintf(SEQ, "%dN", val);
-        
-        nbelemrecu = fread( ptableau , sizeof(char) , nombreElements , f);
-        for(int i=0;i<6;i++){
-            ptableau[nbelemrecu+i]= SEQ[i];
-        }
-        ssize_t sendLine=sendto(desc,ptableau,nbelemrecu+1+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
-        printf("renvoie du sendLine : %d\n", (int)sendLine);
-        for (int i=0;i<nbelemrecu+1+6;i++){  
-            printf("(%d)",ptableau[i]);
-        }
-        //printf("\nnum seq %d\n",(int)ptableau[nbelemrecu]);
-        printf("\nval %d\nSEQ %s\n",val,SEQ);
-        int rcv_ack = recvfrom(desc, ACK, sizeof(ACK), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
-        printf("ack reçu n° %s\n",ACK);
+    int nbElements = 1000;
+    char buffer[nbElements];
+    int nbelemrecu=nbElements;
+    int compt = 0;
+    char ackRecu[10];
+    char messEnvoye[6+nbElements];
+    fd_set input_set;
+    struct timeval timeout;
 
+    
+    while(nbelemrecu==nbElements){
+        compt++;
+        ajoutSeq(compt,messEnvoye);
+        printf("mess=%s\n",messEnvoye);
+        nbelemrecu = fread( buffer , sizeof(char) , nbElements , f);
+        for(int i=0;i<nbelemrecu;i++){ //copie du buffer dans le message à envoyer
+            messEnvoye[i+6]=buffer[i];  //à améliorer car perte de temps mais j'arrivais pas strcat
+        }
+        ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+        printf("renvoie du sendLine : %d\n", (int)sendLine);
+        
+        timeout.tv_sec = 1; 
+        timeout.tv_usec = 0;
+        FD_SET(desc,&input_set); 
+        int res_select=select(desc+1,&input_set,NULL,NULL,&timeout);
+        printf("res selct=%d\n",res_select);
+        if(res_select==0){
+            int res_fseek=fseek(f, -nbelemrecu, SEEK_CUR);
+            compt--;
+        } else {
+        int rcv_ack = recvfrom(desc, ackRecu, sizeof(ackRecu), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);     
+        printf("ackRecu reçu : %s\n",ackRecu);
+        }
+        printf("\n");
 
     }
-    
+    ssize_t sendLine=sendto(desc,"FIN",4,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
     return nbelemrecu;
     
 }
+
+
+
