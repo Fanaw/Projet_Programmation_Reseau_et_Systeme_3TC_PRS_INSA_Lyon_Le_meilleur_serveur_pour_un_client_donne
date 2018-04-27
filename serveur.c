@@ -77,7 +77,7 @@ int main(int argc, char* argv[]){
                             }
                             printf("reçu nom fichier : %s\n",buffer);
 
-                            envoiImage(buffer,desc2,my_addr2,cli_len);
+                            envoiImage2(buffer,desc2,my_addr2,cli_len);
                             
 
 
@@ -162,7 +162,7 @@ int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
         printf("mess=%s\n",messEnvoye);
         nbelemrecu = fread( buffer , sizeof(char) , nbElements , f);
         for(int i=0;i<nbelemrecu;i++){ //copie du buffer dans le message à envoyer
-            messEnvoye[i+6]=buffer[i];  //à améliorer car perte de temps mais j'arrivais pas strcat
+            messEnvoye[i+6]=buffer[i];  //à améliorer car perte de temps mais j'arrivais pas avec strcat
         }
         ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
         printf("renvoie du sendLine : %d\n", (int)sendLine);
@@ -187,5 +187,84 @@ int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
     
 }
 
+int envoiImage2(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
+    FILE *f = fopen(file,"rb");
+    int nbElements = 1000;
+    char buffer[nbElements];
+    char buffer2[nbElements];
+    int nbelemrecu=nbElements;
+    int nbelemrecu2=nbElements;
+    int compt = 0;
+    char ackRecu[10];
+    char ackRecu2[10];
+    char messEnvoye[6+nbElements];
+    char messEnvoye2[6+nbElements];
+    fd_set input_set;
+    struct timeval timeout;
+
+    
+    while(nbelemrecu==nbElements && nbelemrecu2==nbElements){
+        compt++;
+        ajoutSeq(compt,messEnvoye);
+        compt++;
+        ajoutSeq(compt,messEnvoye2);
+        printf("mess=%s\n",messEnvoye);
+        printf("mess2=%s\n",messEnvoye2);
+        nbelemrecu = fread( buffer , sizeof(char) , nbElements , f);
+        nbelemrecu2 = fread( buffer2 , sizeof(char) , nbElements , f);
+        for(int i=0;i<nbelemrecu;i++){ //copie du buffer dans le message à envoyer
+            messEnvoye[i+6]=buffer[i];  //à améliorer car perte de temps mais j'arrivais pas avec strcat
+        }
+        for(int i=0;i<nbelemrecu2;i++){ //copie du buffer dans le message à envoyer
+            messEnvoye2[i+6]=buffer2[i];  //à améliorer car perte de temps mais j'arrivais pas avec strcat
+        }
+        ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+        ssize_t sendLine2=sendto(desc,messEnvoye2,nbelemrecu2+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+        printf("renvoie du sendLine : %d\n", (int)sendLine);
+
+        timeout.tv_sec = 1; 
+        timeout.tv_usec = 0;
+        FD_SET(desc,&input_set);
+        int res_select=select(desc+1,&input_set,NULL,NULL,&timeout);
+        printf("res selct=%d\n",res_select);
+        if(res_select==0){ //si on ne recoit aucun ack
+            int res_fseek=fseek(f, -nbelemrecu*2, SEEK_CUR); //on recule 2 fois en arrière
+            compt-=2;
+        } else { //si recu qqc
+            int rcv_ack = recvfrom(desc, ackRecu, sizeof(ackRecu), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
+            printf("ackRecu reçu : %s\n",ackRecu);
+
+            char ackMesspart1 [10]="ACK";
+            char ackMesspart2 [6];
+            ajoutSeq(compt-1,ackMesspart2);
+            strcat(ackMesspart1,ackMesspart2);
+            printf("ack normal=%s\n",ackMesspart1);
+
+            if(strcmp(ackRecu,ackMesspart1) == 0){ //si recu ack1 on voit si reception ack2
+                printf("ack 1 recu on voit pour 2\n");
+                timeout.tv_sec = 1; 
+                timeout.tv_usec = 0;
+                FD_SET(desc,&input_set);
+                int res_select=select(desc+1,&input_set,NULL,NULL,&timeout);
+                printf("res selct=%d\n",res_select);
+
+                if(res_select==0){ //si on n'a pas recu ack2
+                    printf("ack 2 pas recu \n");
+                    int res_fseek=fseek(f, -nbelemrecu, SEEK_CUR); //on recule 1 fois
+                    compt--;
+                } else { //si on recoit ack2
+                    int rcv_ack2 = recvfrom(desc, ackRecu2, sizeof(ackRecu2), 0,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
+                } 
+            } //pas de else car si on recoit ack 2 c'est qu'on à recu le 1 aussi
+            //FAUX ICI LE CLIENT 1 PEUT FAIRE DES ACK DISCONTINUS !! (donc à revoir)
+            printf("\n");
+
+        }
+
+    }
+    ssize_t sendLine=sendto(desc,"FIN",4,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+    return nbelemrecu;
+    
+}
 
 
