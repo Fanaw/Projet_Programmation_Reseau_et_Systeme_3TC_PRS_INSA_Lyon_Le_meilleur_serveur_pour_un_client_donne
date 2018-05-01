@@ -1,0 +1,11 @@
+clients :
+./client1 10.43.6.156 3008 imgtest.png
+./client2 10.43.6.156 3008 imgtest.png
+
+serveur :
+./serveur_client1 3008
+./serveur_client2 3008
+
+launch :
+python launch_client1 serveur_client1 10.43.6.156 3008 imgtest.png
+python launch_client2 serveur_client2 10.43.6.156 3008 imgtest.png
