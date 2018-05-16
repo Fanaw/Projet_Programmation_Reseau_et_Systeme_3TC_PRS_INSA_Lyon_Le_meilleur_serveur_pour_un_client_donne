@@ -11,7 +11,7 @@
 #include <time.h>
 #include <signal.h>
 double a=0.1;
-int numport=9009;
+int numport=5008;
 int desc;
 
 int envoiImage(char* file,int desc,  struct sockaddr_in my_addr, int cli_len);
