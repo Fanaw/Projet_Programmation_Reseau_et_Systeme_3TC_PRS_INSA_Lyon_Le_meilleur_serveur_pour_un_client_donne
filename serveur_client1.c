@@ -91,7 +91,6 @@ int main(int argc, char* argv[]){
                                 if(pid == 0){
 
                                     printf("je suis dans le fils\n");
-                                    sleep(1);
                                     int rcv_mess = recvfrom(desc2, buffer, sizeof(buffer), 0,(struct sockaddr*)&my_addr2.sin_addr, (unsigned*)&cli_len); //on reçoit le nom de fichier à envoyer
                                     if( rcv_mess <= 0 ) {
                                         printf( "recvfrom() error \n" );
@@ -217,28 +216,21 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
             ajoutSeq(seq,messEnvoye); //on garde le numero de la dernière sequence
             //printf("mess=%s\n",messEnvoye);
             nbelemrecu = fread( buffer , sizeof(char) , nbElements , f);
-            /*for(int i=0;i<nbelemrecu;i++){ //copie du buffer dans le message à envoyer
-                messEnvoye[i+6]=buffer[i];  //à améliorer ? un epu primaire non ?
-            }*/
             memcpy(messEnvoye+6,buffer,nbelemrecu);
             ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
             compt++;
-            //printf("Message %d sur %d envoyé\n",compt,cwnd);
         }
 
-        temps=clock()/CLOCKS_PER_SEC; //on lance un timer
-        while(((clock()/CLOCKS_PER_SEC)-temps)<0.01f && max<seq){ //tant qu'on est pas en timeout et qu'on à pas reçu le plus grand ack
+        temps=clock()*1000000/CLOCKS_PER_SEC; //on lance un timer
+        while(((clock()*1000000/CLOCKS_PER_SEC)-temps)<(700*cwnd) && max<seq){ //tant qu'on est pas en timeout et qu'on à pas reçu le plus grand ack
             int rcv_ack = recvfrom(desc, ackRecu, sizeof(ackRecu),MSG_DONTWAIT,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
-            
-            //implémenter fast recovery
-
             int numAck=ackToInt(ackRecu);
             max=getMax(numAck,max);
         }
 
         if(max==seq){ //si on à recu l'ack du dernier paquet envoyé
             if(cwnd>=ssthresh) { //si on est en congestion avoidance
-                cwnd+=1;
+                cwnd+=5;
             } else {
                 cwnd*=2; //on double la fenetre
             }
@@ -247,17 +239,15 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
             seq-=diffAck;
             fseek(f, -nbelemrecu*diffAck, SEEK_CUR); //on actualise le curseur dans le fichier
             if(cwnd>ssthresh) { //si on est en congestion avoidance
-                cwnd+=1;
+                cwnd+=5;
             } else {
                 cwnd*=2; //on double la fenetre
             }
         }else {
             int nbAckNonRecu=seq-max;
-            //printf("nb ack non recu : %d\n",nbAckNonRecu);
             seq-=nbAckNonRecu;
-            /* FAIRE UNCAS POUR DERNIERS PAQUETS MAL RECUS  */
             fseek(f, -nbelemrecu*nbAckNonRecu, SEEK_CUR); //on actualise le curseur dans le fichier
-            ssthresh=cwnd/2; //on fixe le threshold pr congestion avoidance
+            ssthresh=cwnd/1.7; //on fixe le threshold pr congestion avoidance
             cwnd/=2; //on divise par 2
         } printf("cwnd=%d\n",cwnd);
         //printf("\n");
