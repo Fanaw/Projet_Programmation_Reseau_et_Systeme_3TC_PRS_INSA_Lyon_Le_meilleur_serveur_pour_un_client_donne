@@ -243,10 +243,11 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
     fseek(f, 0, SEEK_SET);
     int lect=fread(bufferfile,1,sizeof(bufferfile),f);
     printf("Fichier stocké en mémoire -- size : %d\n",lect);
-
+    int fin=0;
     
     while(nbelemrecu==TAILLE_PAQUET){ //tant que ce n'est pas la fin du fichier
         compt=0;
+        printf("coucou\n");
         if (cwnd==0) cwnd++;
         while(compt<cwnd){ //on envoie cwnd paquets
             seq++;
@@ -258,28 +259,37 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
                 /////nbelemrecu = fread( buffer , sizeof(char) , TAILLE_PAQUET , f);
                 memcpy(messEnvoye+6,buffer,nbelemrecu);
                 nbPaquet++;
+                ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+                printf("sended:%d\n",(int)sendLine);
             }else{
                 memcpy(buffer,bufferfile+TAILLE_PAQUET*nbPaquet,ELEM_RESTANT);
                 nbelemrecu=ELEM_RESTANT;
-                //printf("Dernier paquet elem rest : %d    seq : %d\n",nbelemrecu,seq);
+                fin=1;
+                printf("Dernier paquet elem rest : %d    seq : %d\n",nbelemrecu,seq);
                 /////nbelemrecu = fread( buffer , sizeof(char) , TAILLE_PAQUET , f);
                 memcpy(messEnvoye+6,buffer,ELEM_RESTANT);
                 nbPaquet++;
                 compt=cwnd;
+                ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
+                printf("    sended:%d\n",(int)sendLine);
             }
-            ssize_t sendLine=sendto(desc,messEnvoye,nbelemrecu+6,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
-            //printf("sended:%d\n",(int)sendLine);
             compt++;
         }
 
         temps=clock()*1000000/CLOCKS_PER_SEC; //on lance un timer
-        while(((clock()*1000000/CLOCKS_PER_SEC)-temps)<(2000*cwnd) && max<seq){ //tant qu'on est pas en timeout et qu'on à pas reçu le plus grand ack
+        while(((clock()*1000000/CLOCKS_PER_SEC)-temps)<(300*cwnd) && max<seq){ //tant qu'on est pas en timeout et qu'on à pas reçu le plus grand ack
             
             int rcv_ack = recvfrom(desc, ackRecu, sizeof(ackRecu),MSG_DONTWAIT,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
             int numAck=ackToInt(ackRecu);
             max=getMax(numAck,max);
         }
-        //printf("max=%d  seq=%d\n",max,seq);
+        if(fin==1 && max!=seq){
+            printf("on est à la fin\n");
+            nbelemrecu=TAILLE_PAQUET;
+            fin=0;
+            nbPaquet--;
+        }
+        printf("max=%d  seq=%d\n",max,seq);
         if(max==seq){ //si on à recu l'ack du dernier paquet envoyé
             if(cwnd>=ssthresh) { //si on est en congestion avoidance
                 cwnd+=5;
@@ -305,9 +315,8 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
             ssthresh=cwnd/1.7; //on fixe le threshold pr congestion avoidance
             cwnd/=2; //on divise par 2
         } printf("cwnd=%d\n",cwnd);
-        //printf("\n");
     }
-   //printf("fini\n");
+    printf("fini\n");
     ssize_t sendLine=sendto(desc,"FIN",4,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
     fclose(f);
     return nbelemrecu;
