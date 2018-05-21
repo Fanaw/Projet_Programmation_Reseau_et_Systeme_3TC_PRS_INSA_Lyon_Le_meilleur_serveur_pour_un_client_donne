@@ -1,4 +1,4 @@
-#include "serveur.h"
+#include "serveur2.h"
 
 #define TAILLE_PAQUET 1490
 #define ELEM_RESTANT tailleFichier-nbPaquet*TAILLE_PAQUET
@@ -231,7 +231,7 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
     clock_t temps=0;
     int max=0;
     int numSeq;
-    int cwnd=1;
+    int cwnd=20;
     int ssthresh=130;
     int compt;
     
@@ -271,7 +271,7 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
         }
 
         temps=clock()*1000000/CLOCKS_PER_SEC; //on lance un timer
-        while(((clock()*1000000/CLOCKS_PER_SEC)-temps)<(300*cwnd) && max<seq){ //tant qu'on est pas en timeout et qu'on à pas reçu le plus grand ack
+        while(((clock()*1000000/CLOCKS_PER_SEC)-temps)<(3000*cwnd) && max<seq){ //tant qu'on est pas en timeout et qu'on à pas reçu le plus grand ack
             
             int rcv_ack = recvfrom(desc, ackRecu, sizeof(ackRecu),MSG_DONTWAIT,(struct sockaddr*)&my_addr.sin_addr, (unsigned*)&cli_len);
             int numAck=ackToInt(ackRecu);
@@ -286,25 +286,29 @@ int slowStart(char* file,int desc,  struct sockaddr_in my_addr, int cli_len){
         }
         if(max==seq){ //si on à recu l'ack du dernier paquet envoyé
             if(cwnd>=ssthresh) { //si on est en congestion avoidance
-                cwnd+=5;
+                if(cwnd<20){cwnd+=40;}
+                else { cwnd*=2;}
             } else {
-                cwnd*=2; //on double la fenetre
+                if(cwnd<20){cwnd+=40;}
+                else { cwnd*=2;}
             }
         } else if (max>seq){ //si on recoit un ack du groupe de message d'avant
             int diffAck=seq-max;
             seq-=diffAck;
             nbPaquet-=diffAck;
             if(cwnd>ssthresh) { //si on est en congestion avoidance
-                cwnd+=5;
+                if(cwnd<20){cwnd+=40;}
+                else { cwnd*=2;}
             } else {
-                cwnd*=2; //on double la fenetre
+                if(cwnd<20){cwnd+=40;}
+                else { cwnd*=2;}
             }
         }else {
             int nbAckNonRecu=seq-max;
             seq-=nbAckNonRecu;
             nbPaquet-=nbAckNonRecu;
             ssthresh=cwnd/1.7; //on fixe le threshold pr congestion avoidance
-            cwnd/=2; //on divise par 2
+            if(cwnd>3) cwnd-=3;
         } printf("cwnd=%d\n",cwnd);
     }
     ssize_t sendLine=sendto(desc,"FIN",4,0,(struct sockaddr*)&my_addr.sin_addr, cli_len);
