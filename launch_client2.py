@@ -32,8 +32,13 @@ statinfo= os.stat(copy_file_name)
 time.sleep(1)
 
 output.write(str(server_name)+" "+ str(statinfo.st_size)+ " "+ str(delta)+ " "+ str(statinfo.st_size/delta)+ "\n")
-
+print (statinfo.st_size//delta)
 output.close()
+
+kill_command= "killall serveur*"
+os.system(kill_command)
+kill_command= "killall client*"
+os.system(kill_command)
 
 #remove_command= "rm "+ copy_file_name
 #os.system(remove_command)
